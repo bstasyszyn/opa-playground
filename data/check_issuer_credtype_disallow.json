@@ -1,0 +1,5 @@
+{
+  "verifierId": "v_myprofile_jwt_whitelist",
+  "issuerId": "bank_issuer_sdjwt_v5",
+  "credentialType": "NotWhiteListed"
+}
