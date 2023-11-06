@@ -1,5 +1,5 @@
 /*
-Copyright SecureKey Technologies Inc. All Rights Reserved.
+Copyright Gen Digital Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 */
@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 
 	"github.com/open-policy-agent/opa/sdk"
@@ -22,12 +21,6 @@ var issuerCheckPolicy string
 
 //go:embed "policy/trustregistry/profiles.rego"
 var profilesPolicy string
-
-//go:embed "data/check_issuer_credtype_allow.json"
-var checkIssuerCredTypeAllowInput []byte
-
-//go:embed "data/check_issuer_credtype_disallow.json"
-var checkIssuerCredTypeDisallowInput []byte
 
 func main() {
 	ctx := context.Background()
@@ -83,10 +76,10 @@ func main() {
 
 	<-ready
 
-	var input map[string]interface{}
-	err = json.Unmarshal(checkIssuerCredTypeAllowInput, &input)
-	if err != nil {
-		panic(err)
+	input := map[string]interface{}{
+		"verifierId":     "v_myprofile_jwt_whitelist",
+		"issuerId":       "bank_issuer_sdjwt_v5",
+		"credentialType": "CrudeProductCredential",
 	}
 
 	result, err := opa.Decision(ctx, sdk.DecisionOptions{
@@ -97,21 +90,31 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Printf("Result for issuer check: %v\n", result.Result)
+	allowed, ok := result.Result.(bool)
+	if !ok {
+		panic("expecting result to be bool")
+	}
 
-	var input2 map[string]interface{}
-	err = json.Unmarshal(checkIssuerCredTypeDisallowInput, &input2)
-	if err != nil {
-		panic(err)
+	fmt.Printf("Result for issuer check: %t\n", allowed)
+
+	input = map[string]interface{}{
+		"verifierId":     "v_myprofile_jwt_whitelist",
+		"issuerId":       "bank_issuer_sdjwt_v5",
+		"credentialType": "NotWhiteListed",
 	}
 
 	result, err = opa.Decision(ctx, sdk.DecisionOptions{
 		Path:  "/trustregistry/allow",
-		Input: input2},
+		Input: input},
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Result for issuer check: %v\n", result.Result)
+	allowed, ok = result.Result.(bool)
+	if !ok {
+		panic("expecting result to be bool")
+	}
+
+	fmt.Printf("Result for issuer check: %t\n", allowed)
 }
