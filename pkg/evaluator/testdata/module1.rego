@@ -1,3 +1,9 @@
+#
+#   Copyright Gen Digital Inc. All Rights Reserved.
+#
+#   SPDX-License-Identifier: Apache-2.0
+#
+
 package module1
 
 import data.module2.user_has_role
