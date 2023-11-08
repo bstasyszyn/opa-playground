@@ -17,18 +17,17 @@ import (
 )
 
 type PartialResultsCache struct {
-	cache map[string]*rego.PartialResult
-	mutex sync.RWMutex
-
-	compiler *ast.Compiler
-	store    storage.Store
+	cache   map[string]*rego.PartialResult
+	mutex   sync.RWMutex
+	modules map[string]string
+	store   storage.Store
 }
 
-func NewPartialResultsCache(compiler *ast.Compiler, store storage.Store) *PartialResultsCache {
+func NewPartialResultsCache(modules map[string]string, store storage.Store) *PartialResultsCache {
 	return &PartialResultsCache{
-		cache:    make(map[string]*rego.PartialResult),
-		compiler: compiler,
-		store:    store,
+		cache:   make(map[string]*rego.PartialResult),
+		modules: modules,
+		store:   store,
 	}
 }
 
@@ -55,10 +54,15 @@ func (c *PartialResultsCache) Get(ctx context.Context, path string) (*rego.Parti
 }
 
 func (c *PartialResultsCache) create(ctx context.Context, path string) (*rego.PartialResult, error) {
+	compiler, err := ast.CompileModules(c.modules)
+	if err != nil {
+		return nil, err
+	}
+
 	pr, err := rego.New(
-		rego.Query(path),
-		rego.Compiler(c.compiler),
 		rego.Store(c.store),
+		rego.Query(path),
+		rego.Compiler(compiler),
 	).PartialResult(ctx)
 	if err != nil {
 		return nil, err

@@ -15,11 +15,16 @@ import data.roles
 default allow = false
 
 allow {
-    custom_print("******* Executing custom builtin function *******")
     user_has_role[role_name]
     role_has_permission[role_name]
 }
 
 not_allow {
     not allow
+}
+
+custom_func {
+    custom_print("******* Executing custom builtin function *******")
+
+    true
 }

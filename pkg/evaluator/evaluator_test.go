@@ -9,6 +9,7 @@ package evaluator
 import (
 	"bytes"
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/open-policy-agent/opa/storage/inmem"
@@ -16,8 +17,12 @@ import (
 )
 
 const (
-	allowPath    = "data.module1.allow"
-	notAllowPath = "data.module1.not_allow"
+	allowPath      = "data.module1.allow"
+	notAllowPath   = "data.module1.not_allow"
+	customFuncPath = "data.module1.custom_func"
+
+	module1 = "./testdata/module1.rego"
+	module2 = "./testdata/module2.rego"
 )
 
 const data = `{
@@ -58,8 +63,8 @@ func TestEvaluate(t *testing.T) {
 	store := inmem.NewFromReader(bytes.NewBufferString(data))
 
 	e, err := New(
-		WithModuleFile("./testdata/module1.rego"),
-		WithModuleFile("./testdata/module2.rego"),
+		WithModuleFile(module1),
+		WithModuleFile(module2),
 		WithStore(store),
 	)
 	require.NoError(t, err)
@@ -92,10 +97,16 @@ func TestEvaluate(t *testing.T) {
 		require.False(t, allowed)
 	})
 
-	t.Run("allow -> false", func(t *testing.T) {
+	t.Run("allow -> true", func(t *testing.T) {
 		allowed, err := e.Evaluate(context.TODO(), allowPath, input2)
 		require.NoError(t, err)
-		require.False(t, allowed)
+		require.True(t, allowed)
+	})
+
+	t.Run("custom_func -> true", func(t *testing.T) {
+		allowed, err := e.Evaluate(context.TODO(), customFuncPath, nil)
+		require.NoError(t, err)
+		require.True(t, allowed)
 	})
 }
 
@@ -103,13 +114,13 @@ func TestEvaluateMultiple(t *testing.T) {
 	store := inmem.NewFromReader(bytes.NewBufferString(data))
 
 	e, err := New(
-		WithModuleFile("./testdata/module1.rego"),
-		WithModuleFile("./testdata/module2.rego"),
+		WithModuleFile(module1),
+		WithModuleFile(module2),
 		WithStore(store),
 	)
 	require.NoError(t, err)
 
-	t.Run("Evaluates to [true,false]", func(t *testing.T) {
+	t.Run("Evaluates to [true,false,true]", func(t *testing.T) {
 		allowed, err := e.EvaluateMultiple(context.TODO(),
 			allowPath,
 			Document{
@@ -140,4 +151,96 @@ func TestEvaluateMultiple(t *testing.T) {
 		require.False(t, allowed[1])
 		require.True(t, allowed[2])
 	})
+}
+
+type testData struct {
+	input         Document
+	expectedAllow bool
+}
+
+type testResult struct {
+	path     string
+	input    Document
+	expected bool
+	result   bool
+	err      error
+}
+
+func TestConcurrency(t *testing.T) {
+	inputData := []*testData{
+		{
+			input: Document{
+				"resource":  "documentA",
+				"operation": "write",
+				"subject": Document{
+					"user": "bob",
+				},
+			},
+			expectedAllow: true,
+		},
+		{
+			input: Document{
+				"resource":  "documentB",
+				"operation": "write",
+				"subject": map[string]interface{}{
+					"user": "alice",
+				},
+			},
+			expectedAllow: false,
+		},
+		{
+			input: Document{
+				"resource":  "documentC",
+				"operation": "read",
+				"subject": map[string]interface{}{
+					"user": "jim",
+				},
+			},
+			expectedAllow: true,
+		},
+	}
+
+	var inputs []*testResult
+
+	for i := 0; i < 1000; i++ {
+		for _, d := range inputData {
+			inputs = append(inputs, &testResult{
+				input:    d.input,
+				path:     allowPath,
+				expected: d.expectedAllow,
+			})
+
+			inputs = append(inputs, &testResult{
+				input:    d.input,
+				path:     notAllowPath,
+				expected: !d.expectedAllow,
+			})
+		}
+	}
+
+	eval, err := New(
+		WithModuleFile(module1),
+		WithModuleFile(module2),
+		WithStore(inmem.NewFromReader(bytes.NewBufferString(data))),
+	)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+
+	wg.Add(len(inputs))
+
+	for _, input := range inputs {
+		go func(input *testResult) {
+			input.result, input.err = eval.Evaluate(context.TODO(), input.path, input.input)
+
+			wg.Done()
+		}(input)
+	}
+
+	wg.Wait()
+
+	for i, input := range inputs {
+		require.NoError(t, input.err)
+		require.Equalf(t, input.expected, input.result, "Input[%d] - Path [%s]", i, input.path)
+	}
 }

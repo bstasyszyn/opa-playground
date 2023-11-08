@@ -12,7 +12,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 )
@@ -54,10 +53,8 @@ func WithStore(store storage.Store) Opt {
 }
 
 type Evaluator struct {
-	compiler    *ast.Compiler
-	store       storage.Store
-	cache       *PartialResultsCache
-	bundlePaths []string
+	store storage.Store
+	cache *PartialResultsCache
 }
 
 func New(opts ...Opt) (*Evaluator, error) {
@@ -78,15 +75,9 @@ func New(opts ...Opt) (*Evaluator, error) {
 		modules[m.Name] = m.Code
 	}
 
-	c, err := ast.CompileModules(modules)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Evaluator{
-		compiler: c,
-		store:    options.store,
-		cache:    NewPartialResultsCache(c, options.store),
+		store: options.store,
+		cache: NewPartialResultsCache(modules, options.store),
 	}, nil
 }
 
