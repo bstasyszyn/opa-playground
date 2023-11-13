@@ -1,0 +1,23 @@
+{
+  "policies": [
+    {
+      "id": "7b75e47f-f6ef-4752-a7e1-1a4ad40d194d",
+      "name": "Trusted Issuers",
+      "language": "rego",
+      "source": [
+        "https://localhost:1111/policies/rego/module1.rego",
+        "https://localhost:1111/policies/rego/module2.rego"
+      ]
+    },
+    {
+      "id": "3c75e47f-w6ef-4752-a7e1-1a4ad40d194d",
+      "name": "Policy2",
+      "language": "rego",
+      "source": [
+        "https://localhost:1111/policies/rego/modulex.rego",
+        "https://localhost:1111/policies/rego/moduley.rego",
+        "https://localhost:1111/policies/rego/modulez.rego"
+      ]
+    }
+  ]
+}
